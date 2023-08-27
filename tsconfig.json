@@ -20,7 +20,7 @@
       "@/styles/*": ["src/styles/*"],
       "@/components/*": ["libs/components/*"],
       "@/constants/*": ["libs/constants/*"],
-      "@/hooks/*": ["libs/hooks/*"],
+      "@/models/*": ["libs/models/*"],
       "@/utils/*": ["libs/utils/*"],
       "@/state/*": ["libs/state/*"]
     },
