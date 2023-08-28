@@ -1,6 +1,10 @@
 'use client';
 
 import React from 'react';
+
+import { formatSimpleCurrency, formatSimpleTime } from '@/utils/utils';
+
+import { useAppProvider } from '../app/provider';
 import {
   BinanceEventType,
   BinanceTradeWS,
@@ -9,7 +13,6 @@ import {
   TradeTableData,
   getPriceColor
 } from './market-trade.helper';
-import { formatSimpleCurrency, formatSimpleTime } from '@/utils/utils';
 
 type MarketTradeProps = {
   tableData: Array<TradeTableData>;
@@ -17,52 +20,28 @@ type MarketTradeProps = {
 
 export function MarketTrade(props: MarketTradeProps) {
   const [tradesTableData, setTradesTableData] = React.useState<Array<TradeTableData>>(props.tableData);
+  const { messages } = useAppProvider();
 
   React.useEffect(() => {
-    const binanceWS = new WebSocket(`wss://stream.binance.com:443/ws`);
-    binanceWS.onmessage = (evt) => {
-      const data = JSON.parse(evt.data);
-
-      switch (data.e) {
-        case BinanceEventType.TRADE: {
-          const parsedData: BinanceTradeWS = data;
-          setTradesTableData((previousData) => {
-            const total = (Number(parsedData.p) * Number(parsedData.q)).toString();
-            const prevPrice = (previousData[0].price ?? '').replace(/,/g, '');
-            const prevColor: TradePriceColor = previousData[0].priceColor;
-            const color = getPriceColor(Number(parsedData.p), Number(prevPrice), prevColor);
-            const formattedData: TradeTableData = {
-              id: parsedData.t,
-              priceColor: color,
-              price: formatSimpleCurrency(parsedData.p),
-              amount: Number(parsedData.q).toFixed(5),
-              total: formatSimpleCurrency(total, 5),
-              time: formatSimpleTime(new Date(parsedData.T))
-            };
-            return [formattedData, ...previousData.slice(0, TRADES_LIMIT - 1)];
-          });
-          break;
-        }
-      }
-    };
-    binanceWS.onerror = (evt) => {
-      console.error('WS Error', evt);
-    };
-    binanceWS.onopen = (evt) => {
-      binanceWS.send(`
-      {
-        "method": "SUBSCRIBE",
-        "params": [
-          "btcusdt@trade"
-        ],
-        "id": ${Math.floor(Math.random() * 10)}
-      }
-      `);
-    };
-    return () => {
-      binanceWS.close();
-    };
-  }, []);
+    if (messages && messages.e === BinanceEventType.TRADE) {
+      const parsedData: BinanceTradeWS = messages;
+      setTradesTableData((previousData) => {
+        const total = (Number(parsedData.p) * Number(parsedData.q)).toString();
+        const prevPrice = (previousData[0].price ?? '').replace(/,/g, '');
+        const prevColor: TradePriceColor = previousData[0].priceColor;
+        const color = getPriceColor(Number(parsedData.p), Number(prevPrice), prevColor);
+        const formattedData: TradeTableData = {
+          id: parsedData.t,
+          priceColor: color,
+          price: formatSimpleCurrency(parsedData.p),
+          amount: Number(parsedData.q).toFixed(5),
+          total: formatSimpleCurrency(total, 5),
+          time: formatSimpleTime(new Date(parsedData.T))
+        };
+        return [formattedData, ...previousData.slice(0, TRADES_LIMIT - 1)];
+      });
+    }
+  }, [messages]);
 
   return (
     <>

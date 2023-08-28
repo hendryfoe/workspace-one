@@ -2,7 +2,16 @@ import { BinanceUiKLineInterval, BinanceUiKLines } from '@/models/binance';
 import { FETCH_ITEMS_LIMIT, getUiKLinesBinanceAPI } from '@/utils/api';
 import { formatSimpleDatetime, timeToTz } from '@/utils/utils';
 
-import { CandlestickData, ColorType, HistogramData, Time, UTCTimestamp } from 'lightweight-charts';
+import {
+  CandlestickData,
+  ChartOptions,
+  ColorType,
+  DeepPartial,
+  HistogramData,
+  TickMarkType,
+  Time,
+  UTCTimestamp
+} from 'lightweight-charts';
 
 export type TVChartData = {
   candlesticks: Array<CandlestickData>;
@@ -28,7 +37,40 @@ export const msByInterval: Record<Partial<BinanceUiKLineInterval>, number> = {
   '1M': 1 * 60 * 60 * 24 * 7 * 4
 };
 
-export const chartDefaultOptions = {
+function tickMarkFormatter(time: Time, tickMarkType: TickMarkType, locale: string): string {
+  const formatOptions: Intl.DateTimeFormatOptions = {};
+
+  switch (tickMarkType) {
+    case TickMarkType.Year:
+      formatOptions.year = 'numeric';
+      break;
+
+    case TickMarkType.Month:
+      formatOptions.month = 'short';
+      break;
+
+    case TickMarkType.DayOfMonth:
+      formatOptions.day = 'numeric';
+      break;
+
+    case TickMarkType.Time:
+      formatOptions.hour12 = false;
+      formatOptions.hour = '2-digit';
+      formatOptions.minute = '2-digit';
+      break;
+
+    case TickMarkType.TimeWithSeconds:
+      formatOptions.hour12 = false;
+      formatOptions.hour = '2-digit';
+      formatOptions.minute = '2-digit';
+      formatOptions.second = '2-digit';
+      break;
+  }
+
+  return new Date((time as number) * 1000).toLocaleString(locale, formatOptions);
+}
+
+export const chartDefaultOptions: DeepPartial<ChartOptions> = {
   autoSize: true,
   height: 400,
   rightPriceScale: {
@@ -43,7 +85,8 @@ export const chartDefaultOptions = {
     lockVisibleTimeRangeOnResize: false,
     timeVisible: true,
     ticksVisible: true,
-    minBarSpacing: 10
+    minBarSpacing: 10,
+    tickMarkFormatter
   },
   localization: {
     timeFormatter: (time: Time) => {
@@ -51,7 +94,8 @@ export const chartDefaultOptions = {
         return formatSimpleDatetime(new Date(time * 1000));
       }
       return time;
-    }
+    },
+    locale: 'en-ID'
   },
   layout: { textColor: 'black', background: { type: ColorType.Solid, color: 'white' } }
 };

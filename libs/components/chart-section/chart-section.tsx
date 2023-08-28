@@ -2,12 +2,22 @@
 
 import React from 'react';
 
-import { ChartOptions, DeepPartial, IChartApi, ISeriesApi, LogicalRangeChangeEventHandler } from 'lightweight-charts';
+import {
+  ChartOptions,
+  DeepPartial,
+  IChartApi,
+  ISeriesApi,
+  LogicalRangeChangeEventHandler,
+  UTCTimestamp
+} from 'lightweight-charts';
 
-import { BinanceUiKLineInterval } from '@/models/binance';
+import { BinanceUiKLineInterval, BinanceUiKLineWS } from '@/models/binance';
 
 import { Chart, SeriesCandlestick, SeriesHistogram } from '../chart';
 import { TVChartData, chartDefaultOptions, getDataByBeforeEndTime, getDataLatest } from './chart-section.helper';
+import { useAppProvider } from '../app/provider';
+import { BinanceEventType } from '../market-trade';
+import { timeToTz } from '@/utils/utils';
 
 type ChartTimeRangeProps = {
   interval: BinanceUiKLineInterval;
@@ -47,18 +57,29 @@ export function ChartSection(props: ChartSectionProps) {
     candlesticks: props.data.candlesticks,
     areas: props.data.areas
   }));
+  const { send } = useAppProvider();
 
   async function onChangeTimeRange(time: BinanceUiKLineInterval) {
     const result = await getDataLatest(time);
     if (result.candlesticks.length > 0) {
       setChartData(result);
+      send({
+        method: 'UNSUBSCRIBE',
+        params: [`btcusdt@kline_${chartInterval}`],
+        id: Math.floor(Math.random() * 10)
+      });
+      send({
+        method: 'SUBSCRIBE',
+        params: [`btcusdt@kline_${time}`],
+        id: Math.floor(Math.random() * 10)
+      });
     }
     setChartInterval(time);
   }
 
   return (
     <>
-      <section className="mb-2 pb-2 w-full border-b">
+      <section className="mb-2 pb-2 border-b w-full overflow-x-scroll">
         <ChartTimeRange onChangeTimeRange={(time) => onChangeTimeRange(time)} interval={chartInterval} />
       </section>
       <PlainChart data={chartData} chartInterval={chartInterval} isChartIntervalChanged={false} />
@@ -77,6 +98,29 @@ export function PlainChart(props: PlainChartProps) {
   const timeScaleRef = React.useRef<VoidFunction | null>(null);
 
   const [chartOptions] = React.useState<DeepPartial<ChartOptions>>(() => chartDefaultOptions);
+
+  const { messages } = useAppProvider();
+
+  React.useEffect(() => {
+    if (messages && messages.e === BinanceEventType.KLINE) {
+      const parsedData: BinanceUiKLineWS = messages;
+      if (parsedData.k.i === props.chartInterval && candlestickRef.current && histogramRef.current) {
+        const time = (timeToTz(parsedData.k.t, 'Asia/Jakarta') / 1000) as UTCTimestamp;
+        candlestickRef.current!.update({
+          time,
+          open: Number(parsedData.k.o),
+          high: Number(parsedData.k.h),
+          low: Number(parsedData.k.l),
+          close: Number(parsedData.k.c)
+        });
+        histogramRef.current!.update({
+          time,
+          value: Number(parsedData.k.v),
+          color: Number(parsedData.k.c) > Number(parsedData.k.o) ? 'rgba(0, 150, 136, 0.8)' : 'rgba(255,82,82, 0.8)'
+        });
+      }
+    }
+  }, [messages, props.chartInterval]);
 
   const chartRef = React.useCallback(
     (chartInstance: IChartApi) => {

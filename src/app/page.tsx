@@ -2,6 +2,7 @@
 
 import React from 'react';
 
+import { AppProvider } from '@/components/app/provider';
 import { ChartSection, transformToTVChartData } from '@/components/chart-section';
 import { BinanceTrades, MarketTrade, TRADES_LIMIT, transformToTradeTableData } from '@/components/market-trade';
 import { Navbar } from '@/components/navbar';
@@ -65,16 +66,24 @@ export default function Page() {
         </div>
       )}
       {data.chartData.candlesticks.length > 0 && (
-        <main className="mt-4 container mx-auto">
-          <section className="w-full grid grid-cols-[1fr_minmax(300px,400px)] gap-4">
-            <section>
-              <ChartSection data={data.chartData} />
+        <AppProvider
+          defaultWSQueries={{
+            method: 'SUBSCRIBE',
+            params: ['btcusdt@trade', 'btcusdt@kline_1d'],
+            id: Math.floor(Math.random() * 100)
+          }}
+        >
+          <main className="mt-4 px-7 w-full container mx-auto pb-[200px]">
+            <section className="grid grid-flow-row grid-cols-1 lg:grid-flow-col lg:grid-cols-[fit-content_minmax(300px,400px)] gap-4">
+              <section>
+                <ChartSection data={data.chartData} />
+              </section>
+              <section>
+                <MarketTrade tableData={data.tradesTableData} />
+              </section>
             </section>
-            <section>
-              <MarketTrade tableData={data.tradesTableData} />
-            </section>
-          </section>
-        </main>
+          </main>
+        </AppProvider>
       )}
     </div>
   );

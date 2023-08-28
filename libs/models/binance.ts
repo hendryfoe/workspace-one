@@ -33,7 +33,7 @@ export type BinanceUiKLines = Array<
   ]
 >;
 
-export type BinanceWSUiKLine = {
+export type BinanceUiKLineWS = {
   e: string; // Event type
   E: number; // Event time
   s: string; // Symbol
@@ -56,4 +56,10 @@ export type BinanceWSUiKLine = {
     Q: string; // Taker buy quote asset volume
     B: string; // Ignore
   };
+};
+
+export type BinanceWSPayload = {
+  method: string;
+  params: string[];
+  id: number;
 };
