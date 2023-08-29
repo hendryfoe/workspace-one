@@ -100,11 +100,15 @@ export const chartDefaultOptions: DeepPartial<ChartOptions> = {
   layout: { textColor: 'black', background: { type: ColorType.Solid, color: 'white' } }
 };
 
-export function transformToTVChartData(data: BinanceUiKLines) {
+export function transformToTVChartData(data: BinanceUiKLines | undefined) {
   const result: TVChartData = {
     candlesticks: [],
     areas: []
   };
+
+  if (data == null) {
+    return result;
+  }
 
   data.forEach((data) => {
     const [openTime, open, high, low, close, volume] = data;

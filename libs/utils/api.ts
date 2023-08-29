@@ -5,6 +5,22 @@ import { buildURL, toQueryString } from './utils';
 
 export const FETCH_ITEMS_LIMIT = '200';
 
+export type FetchBinanceAPIKey = {
+  path: string;
+  params: URLSearchParamsArg;
+};
+export async function fetchBinanceAPI<Result>(key: FetchBinanceAPIKey) {
+  const endpoint = buildURL(`https://api.binance.com${key.path}`, toQueryString(key.params));
+
+  const response = await fetch(endpoint);
+
+  if (!response.ok) {
+    throw response;
+  }
+  const result = (await response.json()) as Result;
+  return result;
+}
+
 export type BinanceGetUiKLinesParams = {
   symbol: string;
   interval: BinanceUiKLineInterval;
@@ -24,7 +40,7 @@ export async function getUiKLinesBinanceAPI(params: BinanceGetUiKLinesParams) {
   return result;
 }
 
-type BinanceGetTradesParams = {
+export type BinanceGetTradesParams = {
   symbol: string;
   limit?: string;
 };

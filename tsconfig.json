@@ -19,6 +19,7 @@
       "@/api/*": ["src/app/api/*"],
       "@/styles/*": ["src/styles/*"],
       "@/components/*": ["libs/components/*"],
+      "@/queries/*": ["libs/queries/*"],
       "@/constants/*": ["libs/constants/*"],
       "@/models/*": ["libs/models/*"],
       "@/utils/*": ["libs/utils/*"],

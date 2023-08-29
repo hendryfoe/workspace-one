@@ -1,20 +1,14 @@
 import React from 'react';
 
+import useSWRSubscription from 'swr/subscription';
+
 import { BinanceWSPayload } from '@/models/binance';
 
-const AppContext = React.createContext<{
-  webSocket: WebSocket | undefined;
-  messages: any;
-  send: (msg: BinanceWSPayload) => void;
-}>(null!);
-AppContext.displayName = 'AppContext';
-
-type AppProviderProps = ChildrenProps & {
-  defaultWSQueries: BinanceWSPayload;
-};
-export function AppProvider(props: AppProviderProps) {
+export function useWebsocket<Data extends unknown>(
+  url: string = `wss://stream.binance.com:443/ws`,
+  message: BinanceWSPayload
+) {
   const [webSocket, setWebSocket] = React.useState<WebSocket>();
-  const [messages, setMessages] = React.useState(null);
   const lastMessage = React.useRef<BinanceWSPayload>();
 
   const send = React.useCallback(
@@ -27,27 +21,28 @@ export function AppProvider(props: AppProviderProps) {
     [webSocket]
   );
 
-  React.useEffect(() => {
+  const { data, error } = useSWRSubscription<Data, Error, string>(url, (url, { next }) => {
     let webSocketInstance: WebSocket;
 
     function connect(message: BinanceWSPayload) {
-      const binanceWS = new WebSocket(`wss://stream.binance.com:443/ws`);
+      const binanceWS = new WebSocket(url);
       binanceWS.onmessage = (evt) => {
         const data = JSON.parse(evt.data);
-        setMessages(data);
+        next(null, data);
       };
       binanceWS.onerror = (evt) => {
         console.error('WS Error', evt);
+        next(evt as any);
       };
       binanceWS.onopen = (evt) => {
         setWebSocket(binanceWS);
         binanceWS.send(JSON.stringify(message));
       };
       binanceWS.onclose = (evt) => {
-        console.log('WS On Close result', evt);
+        console.log('WS On Close result', evt, message);
         if (evt.code === 1008) {
           setTimeout(() => {
-            let innerMessage = props.defaultWSQueries;
+            let innerMessage = message;
             if (lastMessage.current) {
               lastMessage.current.params.push('btcusdt@trade');
               innerMessage = lastMessage.current;
@@ -59,22 +54,13 @@ export function AppProvider(props: AppProviderProps) {
 
       return binanceWS;
     }
-    webSocketInstance = connect(props.defaultWSQueries);
+
+    webSocketInstance = connect(message);
 
     return () => {
       webSocketInstance.close();
     };
-  }, [props.defaultWSQueries]);
+  });
 
-  const contextValue = React.useMemo(() => ({ webSocket, messages, send }), [webSocket, messages, send]);
-
-  return <AppContext.Provider value={contextValue}>{props.children}</AppContext.Provider>;
-}
-
-export function useAppProvider() {
-  const context = React.useContext(AppContext);
-  if (context == null) {
-    throw new Error('<AppProvider> should be defined!');
-  }
-  return context;
+  return { send, data, error };
 }

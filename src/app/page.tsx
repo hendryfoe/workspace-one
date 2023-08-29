@@ -2,12 +2,13 @@
 
 import React from 'react';
 
-import { AppProvider } from '@/components/app/provider';
 import { ChartSection, transformToTVChartData } from '@/components/chart-section';
 import { BinanceTrades, MarketTrade, TRADES_LIMIT, transformToTradeTableData } from '@/components/market-trade';
 import { Navbar } from '@/components/navbar';
 import { Spinner } from '@/components/spinner';
 import { BinanceUiKLines } from '@/models/binance';
+import { useTrades } from '@/queries/use-trades.query';
+import { useUIKLines } from '@/queries/use-ui-kline.query';
 import { FETCH_ITEMS_LIMIT, getTradesBinanceAPI, getUiKLinesBinanceAPI } from '@/utils/api';
 
 async function getData() {
@@ -33,58 +34,63 @@ async function getData() {
   };
 }
 
+const defaultWSPayload = {
+  method: 'SUBSCRIBE',
+  params: ['btcusdt@trade', 'btcusdt@kline_1d'],
+  id: Math.floor(Math.random() * 1000)
+};
+
 export default function Page() {
-  // const data = await getData();
-  const [data, setData] = React.useState<Awaited<ReturnType<typeof getData>>>({
-    chartData: {
-      areas: [],
-      candlesticks: []
-    },
-    tradesTableData: []
+  const time = React.useRef(Date.now().toString());
+
+  const {
+    data: UIKLineData,
+    isLoading: UIKLineIsLoading,
+    isError: UIKLineIsError
+  } = useUIKLines({
+    symbol: 'BTCUSDT',
+    endTime: time.current,
+    interval: '1d',
+    limit: FETCH_ITEMS_LIMIT
   });
+  const chartData = transformToTVChartData(UIKLineData);
 
-  React.useEffect(() => {
-    let isCancel = false;
+  const {
+    data: tradesData,
+    isLoading: tradesIsLoading,
+    isError: tradesIsError
+  } = useTrades({
+    symbol: 'BTCUSDT',
+    limit: TRADES_LIMIT.toString()
+  });
+  const tradesTableData = transformToTradeTableData(tradesData);
 
-    getData().then((result) => {
-      if (!isCancel) {
-        setData(result);
-      }
-    });
-    return () => {
-      isCancel = true;
-    };
-  }, []);
+  if (UIKLineIsLoading) {
+    return <Spinner />;
+  }
 
   return (
     <div className="w-full h-screen">
       <Navbar />
 
-      {data.chartData.candlesticks.length === 0 && (
-        <div className="h-full mt-52">
-          <Spinner />
-        </div>
-      )}
-      {data.chartData.candlesticks.length > 0 && (
-        <AppProvider
-          defaultWSQueries={{
-            method: 'SUBSCRIBE',
-            params: ['btcusdt@trade', 'btcusdt@kline_1d'],
-            id: Math.floor(Math.random() * 100)
-          }}
-        >
-          <main className="mt-4 px-7 w-full container mx-auto pb-[200px]">
-            <section className="grid grid-flow-row grid-cols-1 lg:grid-flow-col lg:grid-cols-[fit-content_minmax(300px,400px)] gap-4">
-              <section>
-                <ChartSection data={data.chartData} />
-              </section>
-              <section>
-                <MarketTrade tableData={data.tradesTableData} />
-              </section>
-            </section>
-          </main>
-        </AppProvider>
-      )}
+      <main className="mt-4 px-7 w-full container mx-auto pb-[200px]">
+        <section className="grid grid-flow-row grid-cols-1 lg:grid-flow-col lg:grid-cols-[calc(100%-430px)_430px] gap-4">
+          <section>
+            {UIKLineIsLoading ? (
+              <Spinner />
+            ) : (
+              <ChartSection
+                candlesticks={chartData.candlesticks}
+                areas={chartData.areas}
+                wsPayload={defaultWSPayload}
+              />
+            )}
+          </section>
+          <section>
+            {tradesIsLoading ? <Spinner /> : <MarketTrade tableData={tradesTableData} wsPayload={defaultWSPayload} />}
+          </section>
+        </section>
+      </main>
     </div>
   );
 }
