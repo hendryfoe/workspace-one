@@ -20,6 +20,7 @@ Please use _`VPN`_ if your country can't establish a connection to `binance.com`
 - [Tailwind](https://tailwindcss.com/)
 - [Lightweight Chart](https://www.tradingview.com/lightweight-charts/)
 - [Jest](https://jestjs.io/)
+- [SWR](https://swr.vercel.app/)
 - Websocket
 
 ---
