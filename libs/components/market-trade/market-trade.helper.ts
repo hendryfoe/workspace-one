@@ -56,9 +56,13 @@ export function getPriceColor(currentPrice: number, previousPrice: number, previ
   return color;
 }
 
-export function transformToTradeTableData(trades: BinanceTrades) {
+export function transformToTradeTableData(trades: BinanceTrades | undefined) {
   const result: Array<TradeTableData> = [];
   let priceChanged = false;
+
+  if (trades == null) {
+    return [];
+  }
 
   trades.forEach((trade, i) => {
     const total = (Number(trade.price) * Number(trade.qty)).toString();

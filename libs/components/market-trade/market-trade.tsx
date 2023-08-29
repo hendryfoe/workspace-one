@@ -2,9 +2,10 @@
 
 import React from 'react';
 
+import { useWebsocket } from '@/queries/use-webhook';
 import { formatSimpleCurrency, formatSimpleTime } from '@/utils/utils';
+import { BinanceWSPayload } from '@/models/binance';
 
-import { useAppProvider } from '../app/provider';
 import {
   BinanceEventType,
   BinanceTradeWS,
@@ -16,15 +17,17 @@ import {
 
 type MarketTradeProps = {
   tableData: Array<TradeTableData>;
+  wsPayload: BinanceWSPayload;
 };
 
 export function MarketTrade(props: MarketTradeProps) {
   const [tradesTableData, setTradesTableData] = React.useState<Array<TradeTableData>>(props.tableData);
-  const { messages } = useAppProvider();
+
+  const { data } = useWebsocket<any>('wss://stream.binance.com:443/ws', props.wsPayload);
 
   React.useEffect(() => {
-    if (messages && messages.e === BinanceEventType.TRADE) {
-      const parsedData: BinanceTradeWS = messages;
+    if (data && data.e === BinanceEventType.TRADE) {
+      const parsedData: BinanceTradeWS = data;
       setTradesTableData((previousData) => {
         const total = (Number(parsedData.p) * Number(parsedData.q)).toString();
         const prevPrice = (previousData[0].price ?? '').replace(/,/g, '');
@@ -41,13 +44,13 @@ export function MarketTrade(props: MarketTradeProps) {
         return [formattedData, ...previousData.slice(0, TRADES_LIMIT - 1)];
       });
     }
-  }, [messages]);
+  }, [data]);
 
   return (
     <>
       <h3 className="font-bold mb-2 pl-2">Market Trades</h3>
       <section className="overflow-x-auto h-[400px]">
-        <table className="table-auto w-full border-separate border-spacing-0 bg-white text-left text-xs shadow-md">
+        <table className="table-fixed w-full border-separate border-spacing-0 bg-white text-left text-xs shadow-md">
           <thead className="bg-gray-50 sticky top-0">
             <tr className="leading-relaxed">
               <th className="pl-2 pr-4 py-1 font-medium text-gray-900 border-b border-slate-200">Price</th>

@@ -11,19 +11,19 @@ import {
   UTCTimestamp
 } from 'lightweight-charts';
 
-import { BinanceUiKLineInterval, BinanceUiKLineWS } from '@/models/binance';
+import { BinanceUiKLineInterval, BinanceUiKLineWS, BinanceWSPayload } from '@/models/binance';
+import { useWebsocket } from '@/queries/use-webhook';
+import { timeToTz } from '@/utils/utils';
 
 import { Chart, SeriesCandlestick, SeriesHistogram } from '../chart';
-import { TVChartData, chartDefaultOptions, getDataByBeforeEndTime, getDataLatest } from './chart-section.helper';
-import { useAppProvider } from '../app/provider';
 import { BinanceEventType } from '../market-trade';
-import { timeToTz } from '@/utils/utils';
+import { TVChartData, chartDefaultOptions, getDataByBeforeEndTime, getDataLatest } from './chart-section.helper';
 
 type ChartTimeRangeProps = {
   interval: BinanceUiKLineInterval;
   onChangeTimeRange(time: BinanceUiKLineInterval): void;
 };
-export function ChartTimeRange(props: ChartTimeRangeProps) {
+export const ChartTimeRange = React.memo(function ChartTimeRange(props: ChartTimeRangeProps) {
   const [selectedTimeRange, setSelectedTimeRange] = React.useState<BinanceUiKLineInterval>(props.interval);
   const timeRanges = ['1s', '1m', '5m', '15m', '30m', '1h', '6h', '12h', '1d', '1w'];
 
@@ -46,51 +46,63 @@ export function ChartTimeRange(props: ChartTimeRangeProps) {
       ))}
     </div>
   );
-}
+});
 
 type ChartSectionProps = {
-  data: TVChartData;
+  candlesticks: TVChartData['candlesticks'];
+  areas: TVChartData['areas'];
+  wsPayload: BinanceWSPayload;
 };
 export function ChartSection(props: ChartSectionProps) {
   const [chartInterval, setChartInterval] = React.useState<BinanceUiKLineInterval>('1d');
   const [chartData, setChartData] = React.useState<TVChartData>(() => ({
-    candlesticks: props.data.candlesticks,
-    areas: props.data.areas
+    candlesticks: props.candlesticks,
+    areas: props.areas
   }));
-  const { send } = useAppProvider();
 
-  async function onChangeTimeRange(time: BinanceUiKLineInterval) {
-    const result = await getDataLatest(time);
-    if (result.candlesticks.length > 0) {
-      setChartData(result);
-      send({
-        method: 'UNSUBSCRIBE',
-        params: [`btcusdt@kline_${chartInterval}`],
-        id: Math.floor(Math.random() * 10)
-      });
-      send({
-        method: 'SUBSCRIBE',
-        params: [`btcusdt@kline_${time}`],
-        id: Math.floor(Math.random() * 10)
-      });
-    }
-    setChartInterval(time);
-  }
+  const { data, send } = useWebsocket<any>('wss://stream.binance.com:443/ws', props.wsPayload);
+
+  const onChangeTimeRange = React.useCallback(
+    async (time: BinanceUiKLineInterval) => {
+      const result = await getDataLatest(time);
+      if (result.candlesticks.length > 0) {
+        setChartData(result);
+        send({
+          method: 'UNSUBSCRIBE',
+          params: [`btcusdt@kline_${chartInterval}`],
+          id: Math.floor(Math.random() * 10)
+        });
+        send({
+          method: 'SUBSCRIBE',
+          params: [`btcusdt@kline_${time}`],
+          id: Math.floor(Math.random() * 10)
+        });
+      }
+      setChartInterval(time);
+    },
+    [chartInterval, send]
+  );
 
   return (
     <>
-      <section className="mb-2 pb-2 border-b w-full overflow-x-scroll">
-        <ChartTimeRange onChangeTimeRange={(time) => onChangeTimeRange(time)} interval={chartInterval} />
+      <section className="mb-2 pb-2 border-b w-full overflow-x-scroll p-30">
+        <ChartTimeRange onChangeTimeRange={onChangeTimeRange} interval={chartInterval} />
       </section>
-      <PlainChart data={chartData} chartInterval={chartInterval} isChartIntervalChanged={false} />
+      <PlainChart
+        candlesticks={chartData.candlesticks}
+        areas={chartData.areas}
+        chartInterval={chartInterval}
+        wsData={data}
+      />
     </>
   );
 }
 
 type PlainChartProps = {
-  data: TVChartData;
+  candlesticks: TVChartData['candlesticks'];
+  areas: TVChartData['areas'];
   chartInterval: BinanceUiKLineInterval;
-  isChartIntervalChanged: boolean;
+  wsData: any;
 };
 export function PlainChart(props: PlainChartProps) {
   const candlestickRef = React.useRef<ISeriesApi<'Candlestick'>>(null);
@@ -99,11 +111,9 @@ export function PlainChart(props: PlainChartProps) {
 
   const [chartOptions] = React.useState<DeepPartial<ChartOptions>>(() => chartDefaultOptions);
 
-  const { messages } = useAppProvider();
-
   React.useEffect(() => {
-    if (messages && messages.e === BinanceEventType.KLINE) {
-      const parsedData: BinanceUiKLineWS = messages;
+    if (props.wsData && props.wsData.e === BinanceEventType.KLINE) {
+      const parsedData: BinanceUiKLineWS = props.wsData;
       if (parsedData.k.i === props.chartInterval && candlestickRef.current && histogramRef.current) {
         const time = (timeToTz(parsedData.k.t, 'Asia/Jakarta') / 1000) as UTCTimestamp;
         candlestickRef.current!.update({
@@ -120,13 +130,13 @@ export function PlainChart(props: PlainChartProps) {
         });
       }
     }
-  }, [messages, props.chartInterval]);
+  }, [props.wsData, props.chartInterval]);
 
   const chartRef = React.useCallback(
     (chartInstance: IChartApi) => {
       if (chartInstance && histogramRef.current && candlestickRef.current) {
-        let candlesticks = props.data.candlesticks;
-        let histograms = props.data.areas;
+        let candlesticks = props.candlesticks;
+        let histograms = props.areas;
 
         histogramRef.current.priceScale().applyOptions({
           scaleMargins: {
@@ -169,15 +179,15 @@ export function PlainChart(props: PlainChartProps) {
         }
       }
     },
-    [props.chartInterval, props.data.areas, props.data.candlesticks]
+    [props.chartInterval, props.areas, props.candlesticks]
   );
 
   return (
     <Chart options={chartOptions} ref={chartRef}>
-      <SeriesCandlestick ref={candlestickRef} data={props.data.candlesticks} />
+      <SeriesCandlestick ref={candlestickRef} data={props.candlesticks} />
       <SeriesHistogram
         ref={histogramRef}
-        data={props.data.areas}
+        data={props.areas}
         options={{
           color: '#26a69a',
           priceFormat: {
